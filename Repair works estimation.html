@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>Бюджет ремонту та оцінка витрат</title>
+    <!-- Favicon-->
+    <link rel="icon" type="image/x-icon" href="assets/favicon.ico" />
+    <!-- Bootstrap icons-->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css" rel="stylesheet" />
+    <!-- Основний CSS (включає Bootstrap)-->
+    <link href="css/styles.css" rel="stylesheet" />
+    <!-- jspdf CDN link -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
+    <!-- PDFMake CDN links -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.70/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.70/vfs_fonts.js"></script>
+    <!-- Bootstrap core JS-->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+</head>
+<body class="d-flex flex-column">
+    <main class="flex-shrink-0">
+        <!-- Форма кошторису витрат на ремонт-->
+        <section class="bg-light py-5">
+            <div class="container px-5 my-5">
+                <h1 class="text-center">Бюджет ремонту та оцінка витрат</h1>
+                <form id="estimationForm">
+                    <div class="mb-3">
+                        <label for="workType" class="form-label">Виберіть вид робіт:</label>
+                        <select class="form-select" id="workType" onchange="updateMaterialOptions()">
+                            <option value="Фарбування стін">Фарбування стін</option>
+                            <option value="Покладання підлоги">Покладання підлоги</option>
+                            <option value="plumbing">Сантехніка</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="materialType" class="form-label">Виберіть тип матеріалу:</label>
+                        <select class="form-select" id="materialType"></select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="workerCount" class="form-label">Кількість робітників:</label>
+                        <input type="number" class="form-control" id="workerCount" placeholder="Введіть кількість" value="4">
+                    </div>
+                    <button type="button" class="btn btn-primary" onclick="addEstimationRow()">Додати до кошторису</button>
+                </form>
+
+                <!-- Відображення вибраних параметрів -->
+                <div class="mt-4">
+                    <h2>Вибрані параметри</h2>
+                    <p id="selectedOptions"></p>
+                </div>
+
+                <!-- Відображення таблиці кошторису -->
+                <div class="mt-4">
+                    <h2>Таблиця кошторису</h2>
+                    <table class="table export-table">
+                        <thead>
+                            <tr>
+                                <th>Вид робіт</th>
+                                <th>Тип матеріалу</th>
+                                <th>Кількість робітників</th>
+                                <th>Вартість ($)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="estimateTableBody"></tbody>
+                    </table>
+                </div>
+
+                <!-- Кнопка експортувати в PDF (используя PDFMake) -->
+                <button type="button" class="btn btn-success" id="pdfmake">Експортувати в PDF (PDFMake)</button>
+            </div>
+        </section>
+    </main>
+    <!-- Основний JS-->
+    <script src="js/scripts.js"></script>
+    <script>
+        const pdfmakeButton = document.getElementById('pdfmake');
+
+        pdfmakeButton.addEventListener('click', function () {
+            downloadPDFWithPDFMake();
+        });
+
+        function downloadPDFWithPDFMake() {
+            var tableHeaderText = [...document.querySelectorAll('.export-table thead tr th')].map(thElement => ({ text: thElement.textContent, style: 'tableHeader' }));
+            var tableRowCells = [...document.querySelectorAll('.export-table tbody tr td')].map(tdElement => ({ text: tdElement.textContent, style: 'tableData' }));
+            var tableDataAsRows = tableRowCells.reduce((rows, cellData, index) => {
+                if (index % 4 === 0) {
+                    rows.push([]);
+                }
+                rows[rows.length - 1].push(cellData);
+                return rows;
+            }, []);
+
+            var docDefinition = {
+                header: { text: 'Бюджет ремонту та оцінка витрат', alignment: 'center' },
+                footer: function (currentPage, pageCount) { return ({ text: `Page ${currentPage} of ${pageCount}`, alignment: 'center' }); },
+                content: [
+                    {
+                        style: 'tableExample',
+                        table: {
+                            headerRows: 1,
+                            body: [
+                                tableHeaderText,
+                                ...tableDataAsRows,
+                            ]
+                        },
+                        layout: {
+                            fillColor: function (rowIndex) {
+                                if (rowIndex === 0) {
+                                    return '#0f4871';
+                                }
+                                return (rowIndex % 2 === 0) ? '#f2f2f2' : null;
+                            }
+                        },
+                    },
+                ],
+                styles: {
+                    tableExample: {
+                        margin: [0, 20, 0, 80],
+                    },
+                    tableHeader: {
+                        margin: 12,
+                        color: 'white',
+                    },
+                    tableData: {
+                        margin: 12,
+                    },
+                },
+            };
+            pdfMake.createPdf(docDefinition).download('estimation_PDFMake.pdf');
+        }
+
+        function updateMaterialOptions() {
+            var materialTypeSelect = document.getElementById('materialType');
+            materialTypeSelect.innerHTML = '';
+
+            var selectedWorkType = document.getElementById('workType').value;
+
+            if (selectedWorkType === 'Фарбування стін') {
+                addOptions(materialTypeSelect, ['Акрилові', 'Латексні', 'Олійні']);
+            } else if (selectedWorkType === 'Покладання підлоги') {
+                addOptions(materialTypeSelect, ['Ламінат', 'Плитка', 'Підложка']);
+            } else if (selectedWorkType === 'plumbing') {
+                addOptions(materialTypeSelect, ['Труби', 'З\'єднувачі', 'Герметування']);
+            }
+        }
+
+        function addOptions(select, options) {
+            options.forEach(function (option) {
+                var optionElement = document.createElement('option');
+                optionElement.value = option;
+                optionElement.text = option;
+                select.add(optionElement);
+            });
+        }
+
+        function addEstimationRow() {
+            var workType = document.getElementById('workType').value;
+            var materialType = document.getElementById('materialType').value;
+            var workerCount = parseInt(document.getElementById('workerCount').value);
+
+            var defaultCost = 50;
+
+            var tableBody = document.getElementById('estimateTableBody');
+            var newRow = tableBody.insertRow();
+            var cell1 = newRow.insertCell(0);
+            var cell2 = newRow.insertCell(1);
+            var cell3 = newRow.insertCell(2);
+            var cell4 = newRow.insertCell(3);
+
+            cell1.innerHTML = workType;
+            cell2.innerHTML = materialType;
+            cell3.innerHTML = workerCount;
+            cell4.innerHTML = defaultCost + workerCount * defaultCost;
+
+            // Update the selected options display
+            var selectedOptions = document.getElementById('selectedOptions');
+            selectedOptions.innerHTML = `<b>Вид робіт:</b> ${workType}, <b>Тип матеріалу:</b> ${materialType}, <b>Кількість робітників:</b> ${workerCount}`;
+
+            // Reset form values
+            document.getElementById('workType').selectedIndex = 0;
+            document.getElementById('materialType').selectedIndex = 0;
+            document.getElementById('workerCount').value = 0;
+        }
+    </script>
+</body>
+</html>
